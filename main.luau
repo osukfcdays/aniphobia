@@ -1,4 +1,3 @@
-local EncodingService = game:GetService("EncodingService")
 local library = loadstring(game:HttpGet("https://raw.githubusercontent.com/pubmain/LinoriaLib/refs/heads/main/Library.lua"))() 
 local thememanager = loadstring(game:HttpGet("https://raw.githubusercontent.com/pubmain/LinoriaLib/refs/heads/main/addons/ThemeManager.lua"))() 
 local savemanager = loadstring(game:HttpGet("https://raw.githubusercontent.com/pubmain/LinoriaLib/refs/heads/main/addons/SaveManager.lua"))() 
@@ -86,10 +85,10 @@ do
     local getsettings = require(game:GetService("ReplicatedStorage"):FindFirstChild("Modules"):WaitForChild("GetSetting"))
     local ogprojectilesim = projectilehandler.SimulateProjectile
 
-    local maxdistance = 10000
+    local maxdistance = 2500
     local silenttype = "mouse"
     local hitbox = "Head"
-    local fov = 180
+    local fov = 30
 
     -- ts so scuffed bro
     local function getsexiestwaifu()
@@ -239,7 +238,7 @@ do
         Min = 0,
         Max = 10000,
         Rounding = 0,
-        Default = 0,
+        Default = 2500,
         Compact = true,
         Text = "silent distance",
         Visible = false,
@@ -253,7 +252,7 @@ do
         Min = 1,
         Max = 180,
         Rounding = 0,
-        Default = 0,
+        Default = 30,
         Compact = true,
         Text = "silent fov",
         Visible = true,
