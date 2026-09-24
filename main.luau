@@ -1,3 +1,4 @@
+local EncodingService = game:GetService("EncodingService")
 local library = loadstring(game:HttpGet("https://raw.githubusercontent.com/pubmain/LinoriaLib/refs/heads/main/Library.lua"))() 
 local thememanager = loadstring(game:HttpGet("https://raw.githubusercontent.com/pubmain/LinoriaLib/refs/heads/main/addons/ThemeManager.lua"))() 
 local savemanager = loadstring(game:HttpGet("https://raw.githubusercontent.com/pubmain/LinoriaLib/refs/heads/main/addons/SaveManager.lua"))() 
@@ -85,29 +86,60 @@ do
     local getsettings = require(game:GetService("ReplicatedStorage"):FindFirstChild("Modules"):WaitForChild("GetSetting"))
     local ogprojectilesim = projectilehandler.SimulateProjectile
 
-
+    local maxdistance = 10000
+    local silenttype = "mouse"
     local hitbox = "Head"
     local fov = 180
 
+    -- ts so scuffed bro
     local function getsexiestwaifu()
         if not localplayer.Character then return nil end
         
         local sexiestwaifu, bestboobs = nil, math.huge
         local fovdis = (camera.ViewportSize.Magnitude / 2) * (fov / 180)
         local mousepos = game:GetService("UserInputService"):GetMouseLocation()
+        local selfroot = localplayer and localplayer.Character and localplayer.Character:FindFirstChild("HumanoidRootPart")
         
         for _,w in waifufolder:GetChildren() do
             if w:IsA("Model") then
-                local hum = w:FindFirstChildOfClass("Humanoid")
-                local root = w:FindFirstChild("HumanoidRootPart")
+                local waifu = w
 
-                if hum and root and hum.Health > 0 then
-                    local screenpos, screen = camera:WorldToViewportPoint(root.Position)
-                        if screen then
-                            local dis = (Vector2.new(screenpos.X, screenpos.Y) - mousepos).Magnitude
-                            if dis <= fovdis and dis < bestboobs then
+                local hum = waifu and waifu:FindFirstChildOfClass("Humanoid")
+                local root = waifu and waifu:FindFirstChild("HumanoidRootPart")
+
+                if not root then continue end
+                if not hum then continue end
+                if hum and hum.Health <= 0 then continue end
+                if hum and hum:GetState() == Enum.HumanoidStateType.Dead then continue end
+
+                if waifu and root and hum and hum.Health > 0 and hum:GetState() ~= Enum.HumanoidStateType.Dead then -- double check because ts so scuffed it magdumps dead bodies????
+                    if silenttype == "mouse" then
+                        local screenpos, screen = camera:WorldToViewportPoint(root.Position)
+                            if screen then
+                                local dis = (Vector2.new(screenpos.X, screenpos.Y) - mousepos).Magnitude
+
+                                if dis and dis <= fovdis and dis < bestboobs then
+                                    bestboobs = dis
+                                    sexiestwaifu = waifu
+                                end
+                            end
+                        end
+                    end
+
+                    if silenttype == "position" then
+                        local dis = (root.Position - selfroot.Position).Magnitude
+
+                        if dis and maxdistance == 0 then
+                            if dis < bestboobs then
                                 bestboobs = dis
-                                sexiestwaifu = w
+                                sexiestwaifu = waifu
+                            end
+                        end
+
+                        if dis and maxdistance > 0 then
+                            if dis <= maxdistance and dis < bestboobs then
+                                bestboobs = dis
+                                sexiestwaifu = waifu
                             end
                         end
                     end
@@ -117,7 +149,7 @@ do
     end
 
     local function getbulletspeed(tool, misc)
-        local settings = getsettings(tool, {ModuleName = misc.ModuleName, ModNames = misc.ModNames, BulletId = misc.BulletId}, nil, nil)
+        local settings = getsettings(tool, {ModuleName = misc.ModuleName, ModNames = misc.ModNames, BulletId = misc.BulletId}, nil, nil) -- if u dont pass ts 1:1 it whines and cries
 
         if settings.ChargedShotAdvanceEnabled and settings.ChargeAlterTable then
             local level = misc.ChargeLevel or 1
@@ -184,6 +216,39 @@ do
 		end
 	})
 
+    main:AddDropdown('silenttype',{
+		Values = {"mouse", "position"},
+		Default = "mouse",
+		Multi = false,
+		Text = "silent type",
+        Tooltip = "mouse gets closest to your mouse, position gets closest around you (ignores fov)",
+		Callback = function(v)  
+            silenttype = v
+
+            if v == 'mouse' then
+                options.silentfov:SetVisible(true)
+                options.silentdistance:SetVisible(false)
+            else
+                options.silentfov:SetVisible(false)
+                options.silentdistance:SetVisible(true)
+            end
+		end
+	})
+
+    main:AddSlider('silentdistance',{
+        Min = 0,
+        Max = 10000,
+        Rounding = 0,
+        Default = 0,
+        Compact = true,
+        Text = "silent distance",
+        Visible = false,
+        Tooltip = "maxmium distance that silent will redirect at (0 means silent will redirect no matter the distance)",
+        Callback = function(v) 
+            maxdistance = v
+        end
+    })
+
     main:AddSlider('silentfov',{
         Min = 1,
         Max = 180,
@@ -191,6 +256,7 @@ do
         Default = 0,
         Compact = true,
         Text = "silent fov",
+        Visible = true,
         Tooltip = "the fov that silentaim will use to redirect",
         Callback = function(v) 
             fov = v
