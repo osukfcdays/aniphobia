@@ -1,4 +1,3 @@
-local EncodingService = game:GetService("EncodingService")
 local library = loadstring(game:HttpGet("https://raw.githubusercontent.com/pubmain/LinoriaLib/refs/heads/main/Library.lua"))() 
 local thememanager = loadstring(game:HttpGet("https://raw.githubusercontent.com/pubmain/LinoriaLib/refs/heads/main/addons/ThemeManager.lua"))() 
 local savemanager = loadstring(game:HttpGet("https://raw.githubusercontent.com/pubmain/LinoriaLib/refs/heads/main/addons/SaveManager.lua"))() 
@@ -24,13 +23,15 @@ local window = library:CreateWindow({
 
 local tabs = {
 	main = window:AddTab("main"),
+    visuals = window:AddTab("visuals"),
     config = window:AddTab("configs")
 }
 
 local main = tabs.main:AddLeftGroupbox("main")
-local misc = tabs.main:AddRightGroupbox("misc")
-local itemteleports = tabs.main:AddLeftTabbox()
-local objectvisuals = tabs.main:AddRightGroupbox("visuals")
+local itemteleports = tabs.main:AddRightTabbox()
+local poiteleports = tabs.main:AddRightGroupbox("poi teleport")
+local objectvisuals = tabs.visuals:AddLeftGroupbox("esp visuals")
+local miscvisuals = tabs.visuals:AddRightGroupbox("misc visuals")
 
 local lighting = cloneref(game:GetService("Lighting"))
 local runserv = cloneref(game:GetService("RunService"))
@@ -58,6 +59,7 @@ local walkspeedcon
 local jumppowercon
 local infammocon
 local playerespcon
+local fullbrightcon
 
 local lootfolder = game:GetService("Workspace"):FindFirstChild("LootItems", true) -- hopefully only one loot folder
 local ammofolder = game:GetService("Workspace"):FindFirstChild("AmmoBoxes")
@@ -71,6 +73,91 @@ local oldfirerate = {}
 local oldrecoil = {}
 local oldpenetration = {}
 local oldrun = {}
+
+local oldlighting = {
+    GlobalShadows = lighting.GlobalShadows,
+    FogStart = lighting.FogStart,
+    FogEnd = lighting.FogEnd,
+    FogColor = lighting.FogColor,
+    Brightness = lighting.Brightness,
+    Ambient = lighting.Ambient,
+    OutdoorAmbient = lighting.OutdoorAmbient,
+    ClockTime = lighting.ClockTime,
+    ColorShift_Top = lighting.ColorShift_Top,
+    ColorShift_Bottom = lighting.ColorShift_Bottom,
+}
+
+local pois = { -- idfk what to call them, tried to sort by biome
+    Spawn = CFrame.new(5987.57031, 16.5, 1156.05176, 1, 0, 0, 0, 1, 0, 0, 0, 1),
+    Chruch = CFrame.new(2801.84644, 115.682617, -3469.67188, 1, -1.10121211e-10, 1.09368284e-05, 1.09052239e-10, 1, 9.77408021e-08, -1.09368284e-05, -9.77408021e-08, 1),
+    Garage = CFrame.new(4710.32227, 214.540283, -3484.44849, 0.537308574, 7.04511649e-08, 0.843385696, -1.95816453e-12, 1, -8.35324983e-08, -0.843385696, 4.48810766e-08, 0.537308574),
+    Campgrounds = CFrame.new(-3689.74365, 426.016876, 4537.26562, 0.57354486, 7.39772545e-08, 0.81917417, 5.98888439e-11, 1, -9.03490474e-08, -0.81917417, 5.1868291e-08, 0.57354486),
+    Town = CFrame.new(2378.50049, 245.499985, -2276.53662, 1, 2.80253043e-10, -5.80242568e-06, -2.80690304e-10, 1, -7.53593952e-08, 5.80242568e-06, 7.53593952e-08, 1),
+    GeneralStore = CFrame.new(-1529.76697, 549.602905, -907.772705, 1, 1.02848452e-09, -1.99808583e-05, -1.02773434e-09, 1, 3.75444209e-08, 1.99808583e-05, -3.75443996e-08, 1),
+    Town2 = CFrame.new(4032.1228, 214.540283, -4890.06494, 0.0104378518, -7.10990644e-09, 0.999945521, -2.86922552e-09, 1, 7.14024395e-09, -0.999945521, -2.94359803e-09, 0.0104378518),
+    Farm = CFrame.new(-2833.5, 212.142212, -4971.66406, 1, -6.80612094e-11, -1.43421803e-05, 6.91225757e-11, 1, 7.40031041e-08, 1.43421803e-05, -7.40031041e-08, 1),
+    LittleRedRock = CFrame.new(-1571.7196, 363.837921, 4629.05908, 0.707112789, 3.91231332e-08, 0.707100749, 8.69078698e-11, 1, -5.54158461e-08, -0.707100749, 3.92467072e-08, 0.707112789),
+    MilitaryCheckpoint = CFrame.new(2106.74731, 562.060791, 1021.68262, 0.866034448, -6.84037227e-09, 0.499984324, 7.90957369e-11, 1, 1.35441702e-08, -0.499984324, -1.16901715e-08, 0.866034448),
+    BigCity = CFrame.new(-2200.21973, 363.834045, 1950.64746, -0.0130356885, 1.0783384e-08, -0.999915004, -1.2999025e-08, 1, 1.09537659e-08, 0.999915004, 1.31407099e-08, -0.0130356885),
+    Tunnel =  CFrame.new(75.8673325, 363.838531, 2870.13159, -0.999939263, -5.89948215e-08, -0.0110214977, -5.9181712e-08, 1, 1.66309633e-08, 0.0110214977, 1.72822237e-08, -0.999939263),
+    Oilfield = CFrame.new(-1872.19775, 323.040833, 5569.59619, -0.335672826, -3.99522193e-08, -0.941978633, -2.32102977e-08, 1, -3.41421256e-08, 0.941978633, 1.04030207e-08, -0.335672826),
+    RangerStation = CFrame.new(-2942.698, 478.68634, 4452.89062, 0.279120117, -1.04641718e-09, -0.960256219, 4.65067496e-09, 1, 2.62096539e-10, 0.960256219, -4.53899585e-09, 0.279120117),
+    UnnamedCity = CFrame.new(-4753.72656, 461.458984, 5370.6167, -0.420061201, -1.13679643e-08, 0.907495797, -2.697975e-08, 1, 3.83671185e-11, -0.907495797, -2.44678944e-08, -0.420061201),
+    DriveIn = CFrame.new(-3678.05981, 403.437622, 6358.90332, 0.906787574, -4.37712266e-08, 0.421587795, 4.91969532e-09, 1, 9.32429884e-08, -0.421587795, -8.24774986e-08, 0.906787574),
+    RadioStation = CFrame.new(1677.93359, 728.692566, -467.033844, 0.999978244, 1.4129669e-08, 0.0065926956, -1.37665781e-08, 1, -5.51200827e-08, -0.0065926956, 5.50281278e-08, 0.999978244),
+    Woodmill = CFrame.new(3412.73047, 702.275269, 171.531189, -0.252075523, 5.88380651e-08, -0.967707574, -1.10960912e-08, 1, 6.36918855e-08, 0.967707574, 2.67929359e-08, -0.252075523),
+    GoldRushCasino = CFrame.new(4354.12939, 702.275757, -1386.62708, -0.829878628, 6.86719162e-08, -0.557944, 2.46416203e-08, 1, 8.64286775e-08, 0.557944, 5.79766706e-08, -0.829878628),
+    Bridge = CFrame.new(4321.82959, 214.540283, -2877.57959, 0.532867968, 1.49249484e-08, 0.84619838, -3.67798272e-08, 1, 5.52334312e-09, -0.84619838, -3.40662432e-08, 0.532867968),
+    MiningSite = CFrame.new(-5033.01465, 609.094666, -1250.09045, -0.350035757, -4.61072815e-08, 0.936736345, 2.76262035e-09, 1, 5.02535187e-08, -0.936736345, 2.01783745e-08, -0.350035757),
+    Junkyard = CFrame.new(-3703.76221, 268.084229, 1932.23645, 0.99996525, -5.82172852e-11, -0.00833883509, 1.83872292e-10, 1, 1.50678865e-08, 0.00833883509, -1.50688955e-08, 0.99996525),
+    TumbleWeed = CFrame.new(-8293.91211, 212.621979, 870.174561, -0.863627434, -5.0147321e-08, -0.504130602, -4.78630504e-08, 1, -1.74785573e-08, 0.504130602, 9.03426756e-09, -0.863627434),
+    Racetrack = CFrame.new(-5982.41406, 212.633423, -2887.49341, -0.998292863, -9.12524545e-09, -0.0584069118, -6.32177954e-09, 1, -4.81836473e-08, 0.0584069118, -4.77321542e-08, -0.998292863),
+    DesertGasStation = CFrame.new(-7360.72705, 212.628632, -2373.35767, 0.906328142, -3.90909989e-08, 0.42257461, 1.89837417e-11, 1, 9.24660171e-08, -0.42257461, -8.37965359e-08, 0.906328142),
+    DesertCheckpoint = CFrame.new(-8354.36621, 212.623657, -619.24707, -0.999991655, 6.8980438e-10, -0.00409051264, 6.89012403e-10, 1, 1.95022998e-10, 0.00409051264, 1.92202948e-10, -0.999991655),
+    MilitaryBase = CFrame.new(-5470.07178, 212.650604, -5007.16455, -0.00476636924, -2.09601261e-08, 0.999988616, -3.77700218e-08, 1, 2.07803357e-08, -0.999988616, -3.76705458e-08, -0.00476636924),
+    Silo = CFrame.new(-8544.0459, 256.574188, -3617.67554, 0.645818174, -7.09905663e-08, 0.763491273, 3.76430798e-08, 1, 6.11401632e-08, -0.763491273, -1.0745266e-08, 0.645818174),
+    Prison = CFrame.new(-6919.08643, 268.078186, 1932.01428, 0.999997973, -4.04168681e-08, 0.00202428736, 4.03272509e-08, 1, 4.43114843e-08, -0.00202428736, -4.42297612e-08, 0.999997973),
+    PowerPlant = CFrame.new(-5271.32617, 268.081787, 1386.19324, 0.999946952, -1.8482579e-08, -0.0102981143, 1.91460803e-08, 1, 6.43307558e-08, 0.0102981143, -6.45245137e-08, 0.999946952),
+    Mansion = CFrame.new(544.336853, 212.651062, -4101.25244, 0.0201368686, -2.18897398e-08, -0.999797225, 9.08551545e-09, 1, -2.17111893e-08, 0.999797225, -8.64647731e-09, 0.0201368686),
+    InsideSilo = CFrame.new(-8786.00684, 240.073883, -3728.62671, -0.77181226, -4.15307682e-08, 0.635850489, -1.52182018e-08, 1, 4.68430486e-08, -0.635850489, 2.64775384e-08, -0.77181226),
+    NukeLaunchRoom = CFrame.new(-8743.53809, 219.07373, -3843.15747, -0.626683116, 5.10456886e-08, -0.779274166, 1.17298548e-07, 1, -2.88259674e-08, 0.779274166, -1.09472474e-07, -0.626683116),
+}
+
+local poinames = {
+    "Spawn",
+    "Chruch",
+    "Garage",
+    "Campgrounds",
+    "Town",
+    "GeneralStore",
+    "Town2",
+    "Farm" ,
+    "LittleRedRock",
+    "MilitaryCheckpoint",
+    "BigCity",
+    "Tunnel",
+    "Oilfield",
+    "RangerStation",
+    "UnnamedCity",
+    "DriveIn",
+    "RadioStation",
+    "Woodmill",
+    "GoldRushCasino",
+    "Bridge",
+    "MiningSite",
+    'Junkyard',
+    "TumbleWeed",
+    "Racetrack",
+    "DesertGasStation",
+    "DesertCheckpoint",
+    "MilitaryBase",
+    "Silo",
+    "Prison",
+    "PowerPlant",
+    "Mansion", 
+    "InsideSilo",
+    "NukeLaunchRoom"    
+}
 
 local infammo = false
 local rapidfire = false
@@ -437,6 +524,8 @@ main:AddToggle('runwithgun',{
     end
 })
 
+main:AddDivider()
+
 infammocon = localplayer.DescendantAdded:Connect(function(c)
     task.wait(0.5) -- sometime for weapon logic
 
@@ -751,10 +840,59 @@ do
 end
 
 do
+    local selectedpoi = pois.Spawn or nil
+
+    poiteleports:AddDropdown('pois',{
+		Values = poinames,
+		Default = poinames[1] or "None",
+		Multi = false,
+		Text = "selected poi",
+		Callback = function(v)
+            selectedpoi = pois[v]
+		end
+	})
+
+    poiteleport = poiteleports:AddButton({
+        Text = "teleport",
+        Func = function()
+            if localplayer and localplayer.Character and selectedpoi ~= nil then
+                localplayer.Character:FindFirstChild("HumanoidRootPart").CFrame = selectedpoi
+            end
+        end,
+        DoubleClick = false,
+        Visible = true
+    })
+
+    poiteleports:AddDivider()
+
+    saveoldcframe = poiteleports:AddButton({
+        Text = "save cframe",
+        Func = function()
+            if localplayer and localplayer.Character then
+                ogcframe = localplayer.Character:FindFirstChild("HumanoidRootPart").CFrame
+            end
+        end,
+        DoubleClick = false,
+        Visible = true
+    })
+
+    teleportooldcframe = poiteleports:AddButton({
+        Text = "teleport to old cframe",
+        Func = function()
+            if localplayer and localplayer.Character and ogcframe then
+                localplayer.Character:FindFirstChild("HumanoidRootPart").CFrame = ogcframe
+            end
+        end,
+        DoubleClick = false,
+        Visible = true
+    })
+end
+
+do
     local jumppower = 20
     local walkspeed = 18
 
-    misc:AddToggle('walkspeedoverride',{
+    main:AddToggle('walkspeedoverride',{
         Default = false,
         Text = "walkspeed override",
         Callback = function(v)
@@ -778,9 +916,9 @@ do
             end
         end
     })
-    misc:AddSlider('walkspeed',{
+    main:AddSlider('walkspeed',{
         Min = 1,
-        Max = 250,
+        Max = 500,
         Rounding = 0,
         Default = walkspeed,
         Compact = true,
@@ -791,7 +929,7 @@ do
         end
     })
 
-    misc:AddToggle('jumppoweroverride',{
+    main:AddToggle('jumppoweroverride',{
         Default = false,
         Text = "jumppower override",
         Callback = function(v)
@@ -815,9 +953,9 @@ do
             end
         end
     })
-    misc:AddSlider('jumppower',{
+    main:AddSlider('jumppower',{
         Min = 1,
-        Max = 250,
+        Max = 350,
         Rounding = 0,
         Default = jumppower,
         Compact = true,
@@ -1260,6 +1398,44 @@ objectvisuals:AddSlider('vehicleesptrans',{
     end
 })
 
+miscvisuals:AddToggle('fullbright',{
+    Default = false,
+    Text =  "fullbright",
+    Tooltip = "better visibility",
+    Callback = function(v)
+        if v then
+            fullbrightcon = runserv.Heartbeat:Connect(function() -- game lwk overrides all lighting during day/night changes, gotta constantly override
+                lighting.GlobalShadows = false
+                lighting.FogStart = 9e9
+                lighting.FogEnd = 9e9
+                lighting.FogColor = Color3.fromRGB(255,255,255)
+                lighting.Brightness = 10
+                lighting.Ambient = Color3.fromRGB(255,255,255)
+                lighting.OutdoorAmbient = Color3.fromRGB(255,255,255)
+                lighting.ClockTime = 12
+                lighting.ColorShift_Top = Color3.fromRGB(255,255,255)
+                lighting.ColorShift_Bottom = Color3.fromRGB(255,255,255)
+            end)
+        else
+            if fullbrightcon then
+                fullbrightcon:Disconnect()
+                fullbrightcon = nil
+            end
+
+            lighting.GlobalShadows = oldlighting.GlobalShadows
+            lighting.FogStart = oldlighting.FogStart
+            lighting.FogEnd = oldlighting.FogEnd
+            lighting.FogColor = oldlighting.FogColor
+            lighting.Brightness = oldlighting.Brightness
+            lighting.Ambient = oldlighting.Ambient
+            lighting.OutdoorAmbient = oldlighting.OutdoorAmbient
+            lighting.ClockTime = oldlighting.ClockTime
+            lighting.ColorShift_Top = oldlighting.ColorShift_Top
+            lighting.ColorShift_Bottom = oldlighting.ColorShift_Bottom
+        end
+    end
+})
+
 
 -- shitty cleanup method but it workie
 library:OnUnload(function()
@@ -1336,6 +1512,22 @@ library:OnUnload(function()
         playerespcon:Disconnect()
         playerespcon = nil
     end
+
+    if fullbrightcon then
+        fullbrightcon:Disconnect()
+        fullbrightcon = nil
+    end
+
+    lighting.GlobalShadows = oldlighting.GlobalShadows
+    lighting.FogStart = oldlighting.FogStart
+    lighting.FogEnd = oldlighting.FogEnd
+    lighting.FogColor = oldlighting.FogColor
+    lighting.Brightness = oldlighting.Brightness
+    lighting.Ambient = oldlighting.Ambient
+    lighting.OutdoorAmbient = oldlighting.OutdoorAmbient
+    lighting.ClockTime = oldlighting.ClockTime
+    lighting.ColorShift_Top = oldlighting.ColorShift_Top
+    lighting.ColorShift_Bottom = oldlighting.ColorShift_Bottom
 
     if oldrun then
         for i,v in oldrun do
