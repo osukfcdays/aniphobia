@@ -1,3 +1,4 @@
+local EncodingService = game:GetService("EncodingService")
 local library = loadstring(game:HttpGet("https://raw.githubusercontent.com/pubmain/LinoriaLib/refs/heads/main/Library.lua"))() 
 local thememanager = loadstring(game:HttpGet("https://raw.githubusercontent.com/pubmain/LinoriaLib/refs/heads/main/addons/ThemeManager.lua"))() 
 local savemanager = loadstring(game:HttpGet("https://raw.githubusercontent.com/pubmain/LinoriaLib/refs/heads/main/addons/SaveManager.lua"))() 
@@ -79,8 +80,11 @@ local runwithgun = false
 
 local silentaim = false
 
+local firerate = 0.015
+
 -- no reason to seperate ts with a do end but i will
 do
+    local prediction = loadstring(game:HttpGet("https://raw.githubusercontent.com/7GrandDadPGN/VapeV4ForRoblox/main/src/libraries/prediction.lua"))() -- i cant make prediction
    	local projectilehandler = require(game:GetService("ReplicatedStorage"):FindFirstChild("Modules"):WaitForChild("ProjectileHandler"))
     local getsettings = require(game:GetService("ReplicatedStorage"):FindFirstChild("Modules"):WaitForChild("GetSetting"))
     local ogprojectilesim = projectilehandler.SimulateProjectile
@@ -163,32 +167,22 @@ do
         return settings.BulletSpeed
     end
 
-    local function predict(hitpart, origin, bulletspeed) -- crappy skidded/vibecoded prediction method
-        local root = hitpart.Parent and hitpart.Parent:FindFirstChild("HumanoidRootPart")
-        if not root then return hitpart.Position end
-
-        local dis = (hitpart.Position - origin).Magnitude
-        local travel = (dis / math.max(bulletspeed, 1))
-
-        local veloshitty = root.Velocity -- get it? its velocity hahaha🤣🤣
-        if veloshitty.Magnitude < 0.01 then
-            veloshitty = root.Velocity
-        end
-
-        return hitpart.Position + veloshitty * travel
-    end
-
     projectilehandler.SimulateProjectile = function(v1, tool, v3, bullets, muzzle, v6, misc, replicate)
         if silentaim and replicate and type(bullets) == "table" and muzzle then
             local sexywaifu = getsexiestwaifu()
             if sexywaifu and sexywaifu:FindFirstChild(hitbox) then
                 local origin = (muzzle.WorldPosition or muzzle.Position)
                 local bulletspeed = getbulletspeed(tool, misc)
-                local predictedpos = predict(sexywaifu:FindFirstChild(hitbox), origin, bulletspeed)
-                local dir = (predictedpos - origin).Unit
+                local hitpart = sexywaifu:FindFirstChild(hitbox)
+                local root = sexywaifu:FindFirstChild("HumanoidRootPart")
+                
+                if root and hitpart and origin and bulletspeed then
+                    local predictedpos = prediction and prediction.SolveTrajectory(origin, bulletspeed, game:GetService("Workspace").Gravity, hitpart.Position, root.Velocity, nil, nil, nil, nil)
+                    local dir = (predictedpos - origin).Unit
 
-                for _, b in bullets do
-                    if type(b) == "table" then b[1] = dir end
+                    for _, b in bullets do
+                        if type(b) == "table" then b[1] = dir end
+                    end
                 end
             end
         end
@@ -296,9 +290,10 @@ main:AddToggle('infiniteammo',{
 main:AddToggle('rapidfire',{
     Default = false,
     Text = "rapid fire",
-    Tooltip = "removes weapon firerate/charge",
+    Tooltip = "lets you customize the firerate of guns (lower your volume as much as possible pls)",
     Callback = function(v)
         rapidfire = v
+        options.firerate:SetVisible(v)
 
         if v then
             for _,v in filtergc("table",{Keys = {"FireRate", "MaximumFireRate", "FireRateIncrement", "DelayBeforeFiring", "DelayAfterFiring", "Auto", "ChargingTime", "ShotgunPumpinSpeed", "LaserBeamStartupDelay", "LaserBeamStopDelay"}}) do
@@ -307,8 +302,8 @@ main:AddToggle('rapidfire',{
                 end
 
                 setreadonly(v, false)
-                v.FireRate = 0.05 
-                v.MaximumFireRate = 0.05 
+                v.FireRate = firerate
+                v.MaximumFireRate = firerate
                 v.FireRateIncrement = 0
                 v.DelayBeforeFiring = 0
                 v.DelayAfterFiring = 0
@@ -334,6 +329,26 @@ main:AddToggle('rapidfire',{
                 v.LaserBeamStopDelay = v[10]
                 setreadonly(i, true)
             end
+        end
+    end
+})
+main:AddSlider('firerate',{
+    Min = 0,
+    Max = 1,
+    Rounding = 2,
+    Default = firerate,
+    Compact = true,
+    Text = "firerate",
+    Visible = false,
+    Tooltip = "lets you change the firerate rapid fire uses (low values = earrape)",
+    Callback = function(v) 
+        firerate = v
+
+        for _,t in filtergc("table",{Keys = {"FireRate", "MaximumFireRate"}}) do
+            setreadonly(t, false)
+            t.FireRate = firerate
+            t.MaximumFireRate = firerate
+            setreadonly(t, true)
         end
     end
 })
@@ -446,8 +461,8 @@ infammocon = localplayer.DescendantAdded:Connect(function(c)
                 end
 
                 setreadonly(v, false)
-                v.FireRate = 0.05 
-                v.MaximumFireRate = 0.05 
+                v.FireRate = firerate 
+                v.MaximumFireRate = firerate
                 v.FireRateIncrement = 0
                 v.DelayBeforeFiring = 0
                 v.DelayAfterFiring = 0
