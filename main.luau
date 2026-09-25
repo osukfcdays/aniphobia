@@ -24,6 +24,7 @@ local window = library:CreateWindow({
 local tabs = {
 	main = window:AddTab("main"),
     visuals = window:AddTab("visuals"),
+    misc = window:AddTab("misc"),
     config = window:AddTab("configs")
 }
 
@@ -31,7 +32,8 @@ local main = tabs.main:AddLeftGroupbox("main")
 local itemteleports = tabs.main:AddRightTabbox()
 local poiteleports = tabs.main:AddRightGroupbox("poi teleport")
 local objectvisuals = tabs.visuals:AddLeftGroupbox("esp visuals")
-local miscvisuals = tabs.visuals:AddRightGroupbox("misc visuals")
+local worldvisuals = tabs.visuals:AddRightGroupbox("world visuals")
+local misc = tabs.misc:AddLeftGroupbox("misc")
 
 local lighting = cloneref(game:GetService("Lighting"))
 local runserv = cloneref(game:GetService("RunService"))
@@ -59,7 +61,9 @@ local walkspeedcon
 local jumppowercon
 local infammocon
 local playerespcon
-local fullbrightcon
+local lightingcon
+local staffdetectorcon
+local meleeauracon
 
 local lootfolder = game:GetService("Workspace"):FindFirstChild("LootItems", true) -- hopefully only one loot folder
 local ammofolder = game:GetService("Workspace"):FindFirstChild("AmmoBoxes")
@@ -75,16 +79,35 @@ local oldpenetration = {}
 local oldrun = {}
 
 local oldlighting = {
-    GlobalShadows = lighting.GlobalShadows,
-    FogStart = lighting.FogStart,
-    FogEnd = lighting.FogEnd,
-    FogColor = lighting.FogColor,
-    Brightness = lighting.Brightness,
     Ambient = lighting.Ambient,
     OutdoorAmbient = lighting.OutdoorAmbient,
+    Brightness = lighting.Brightness,
     ClockTime = lighting.ClockTime,
+    FogColor = lighting.FogColor,
+    FogStart = lighting.FogStart,
+    FogEnd = lighting.FogEnd,
+    GlobalShadows = lighting.GlobalShadows,
     ColorShift_Top = lighting.ColorShift_Top,
     ColorShift_Bottom = lighting.ColorShift_Bottom,
+    EnvironmentDiffuseScale = lighting.EnvironmentDiffuseScale,
+    EnvironmentSpecularScale = lighting.EnvironmentSpecularScale,
+    ShadowSoftness = lighting.ShadowSoftness
+}
+
+local newlighting = {
+    Ambient = oldlighting.Ambient,
+    OutdoorAmbient = oldlighting.OutdoorAmbient,
+    Brightness = oldlighting.Brightness,
+    ClockTime = oldlighting.ClockTime,
+    FogColor = oldlighting.FogColor,
+    FogStart = oldlighting.FogStart,
+    FogEnd = oldlighting.FogEnd,
+    GlobalShadows = oldlighting.GlobalShadows,
+    ColorShift_Top = oldlighting.ColorShift_Top,
+    ColorShift_Bottom = oldlighting.ColorShift_Bottom,
+    EnvironmentDiffuseScale = oldlighting.EnvironmentDiffuseScale,
+    EnvironmentSpecularScale = oldlighting.EnvironmentSpecularScale,
+    ShadowSoftness = oldlighting.ShadowSoftness
 }
 
 local pois = { -- idfk what to call them, tried to sort by biome
@@ -321,7 +344,7 @@ do
         Rounding = 0,
         Default = 2500,
         Compact = true,
-        Text = "silent distance",
+        Text = "distance",
         Visible = false,
         Tooltip = "maxmium distance that silent will redirect at (0 means silent will redirect no matter the distance)",
         Callback = function(v) 
@@ -340,6 +363,89 @@ do
         Tooltip = "the fov that silentaim will use to redirect",
         Callback = function(v) 
             fov = v
+        end
+    })
+
+    main:AddDivider()
+end
+
+do
+    local melee = game:GetService("ReplicatedStorage"):FindFirstChild("MeleeSystem"):WaitForChild("MeleeEvent")
+    local maxdistance = 12
+    local cooldown = 0.5
+    local lastswing = 0
+
+    main:AddToggle('meleeaura',{
+        Default = false,
+        Text = "melee aura",
+        Tooltip = "hits any enemy within a certain distance",
+        Callback = function(v)
+            options.meleeauradistance:SetVisible(v)
+            options.meleeauracooldown:SetVisible(v)
+
+            if v then
+                meleeauracon = runserv.Heartbeat:Connect(function()
+                    local tool = localplayer and localplayer.Character and localplayer.Character:FindFirstChildOfClass("Tool")
+
+                    if tool and tool:FindFirstChild("MeleeHitbox") then
+                        for _,v in waifufolder:GetChildren() do
+                            if localplayer and localplayer.Character and v then
+                                local root = v and v:FindFirstChild("HumanoidRootPart")
+                                local hum = v and v:FindFirstChildOfClass("Humanoid")
+                                local selfroot = localplayer and localplayer.Character and localplayer.Character:FindFirstChild("HumanoidRootPart")
+
+                                if v and root and hum and selfroot and hum.Health > 0 and hum:GetState() ~= Enum.HumanoidStateType.Dead then
+                                    local currentdistance = (root.Position - selfroot.Position).Magnitude
+
+                                    if v and currentdistance <= maxdistance and tick() - cooldown >= lastswing then
+                                        lastswing = tick()
+
+                                        melee:FireServer(
+                                            "hit",
+                                            {
+                                                v
+                                            }
+                                        )
+                                        print("swibng")
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end)
+            else
+                if meleeauracon then
+                    meleeauracon:Disconnect()
+                    meleeauracon = nil
+                end
+            end
+        end
+    })
+
+    main:AddSlider('meleeauradistance',{
+        Min = 1,
+        Max = 12,
+        Rounding = 1,
+        Default = maxdistance,
+        Compact = true,
+        Text = "distance",
+        Visible = false,
+        Tooltip = "how close a enemy needs to be for melee aura to hit them",
+        Callback = function(v) 
+            maxdistance = v
+        end
+    })
+    main:AddSlider('meleeauracooldown',{
+        Min = 0,
+        Max = 1,
+        Rounding = 1,
+        Default = cooldown,
+        Compact = true,
+        Text = "cooldown",
+        Visible = false,
+        Tooltip = "cooldown between melee aura hits",
+        Callback = function(v) 
+            cooldown = v
         end
     })
 
@@ -468,7 +574,7 @@ main:AddToggle('no recoil',{
 main:AddToggle('infinite penetration',{
     Default = false,
     Text = "infinite penetration",
-    Tooltip = "lets your bullets penetrate most objects/terrain (works best with red ryder carbine)",
+    Tooltip = "lets your bullets penetrate most objects/terrain (works best with snipers)",
     Callback = function(v)
         infpenetration = v
 
@@ -604,6 +710,8 @@ infammocon = localplayer.DescendantAdded:Connect(function(c)
         end
     end
 end)
+
+
 
 do
     local loottab = itemteleports:AddTab("loot")
@@ -966,6 +1074,64 @@ do
         end
     })
 end
+
+misc:AddToggle('staffdetector',{
+    Default = false,
+    Text =  "staff detector",
+    Tooltip = "notifies you when staff joins your server or is already in your server",
+    Callback = function(v)
+        if v then
+            staffdetectorcon = game:GetService("Players").PlayerAdded:Connect(function(p) 
+                if p then
+                    local rank = p:GetRoleInGroup(10668871)
+
+                    if rank == "Guest" then return end
+                    if rank == "Verified" then return end
+                    if rank == "Influencer" then return end
+
+                    if rank then
+                        local msg = "staff joined " .. "(" .. p.Name .. ", " .. rank ..")"
+
+                        if msg then
+                            library:Notify({
+                                Title = "staff detector",
+                                Description = msg,
+                                Time = 5,
+                            })
+                        end
+                    end
+                end
+            end)
+
+            for _,p in game:GetService("Players"):GetPlayers() do
+                if p then
+                    local rank = p:GetRoleInGroup(10668871)
+
+                    if rank == "Guest" then return end
+                    if rank == "Verified" then return end
+                    if rank == "Influencer" then return end
+
+                    if rank then
+                        local msg = "staff found " .. "(" .. p.Name .. ", " .. rank ..")"
+
+                        if msg then
+                            library:Notify({
+                                Title = "staff detector",
+                                Description = msg,
+                                Time = 5,
+                            })
+                        end
+                    end
+                end
+            end
+        else
+            if staffdetectorcon then
+                staffdetectorcon:Disconnect()
+                staffdetectorcon = nil
+            end
+        end
+    end
+})
 
 objectvisuals:AddToggle('waifuesp',{
     Default = false,
@@ -1398,44 +1564,207 @@ objectvisuals:AddSlider('vehicleesptrans',{
     end
 })
 
-miscvisuals:AddToggle('fullbright',{
-    Default = false,
-    Text =  "fullbright",
-    Tooltip = "better visibility",
-    Callback = function(v)
-        if v then
-            fullbrightcon = runserv.Heartbeat:Connect(function() -- game lwk overrides all lighting during day/night changes, gotta constantly override
-                lighting.GlobalShadows = false
-                lighting.FogStart = 9e9
-                lighting.FogEnd = 9e9
-                lighting.FogColor = Color3.fromRGB(255,255,255)
-                lighting.Brightness = 10
-                lighting.Ambient = Color3.fromRGB(255,255,255)
-                lighting.OutdoorAmbient = Color3.fromRGB(255,255,255)
-                lighting.ClockTime = 12
-                lighting.ColorShift_Top = Color3.fromRGB(255,255,255)
-                lighting.ColorShift_Bottom = Color3.fromRGB(255,255,255)
-            end)
-        else
-            if fullbrightcon then
-                fullbrightcon:Disconnect()
-                fullbrightcon = nil
+do
+    worldvisuals:AddToggle('lighthingoverride',{
+        Default = false,
+        Text = "override lighting",
+        Callback = function(v)
+            if v then
+                lightingcon = runserv.Heartbeat:Connect(function()
+                    lighting.Ambient = newlighting.Ambient
+                    lighting.OutdoorAmbient = newlighting.OutdoorAmbient
+                    lighting.Brightness = newlighting.Brightness
+                    lighting.ClockTime = newlighting.ClockTime
+                    lighting.FogColor = newlighting.FogColor
+                    lighting.FogStart = newlighting.FogStart
+                    lighting.FogEnd = newlighting.FogEnd
+                    lighting.GlobalShadows = newlighting.GlobalShadows
+                    lighting.ColorShift_Top = newlighting.ColorShift_Top
+                    lighting.ColorShift_Bottom = newlighting.ColorShift_Bottom
+                    lighting.EnvironmentDiffuseScale = newlighting.EnvironmentDiffuseScale
+                    lighting.EnvironmentSpecularScale = newlighting.EnvironmentSpecularScale
+                    lighting.ShadowSoftness = newlighting.ShadowSoftness
+                end)
+            else
+                if lightingcon then
+                    lightingcon:Disconnect()
+                    lightingcon = nil
+                end
+
+                lighting.Ambient = oldlighting.Ambient
+                lighting.OutdoorAmbient = oldlighting.OutdoorAmbient
+                lighting.Brightness = oldlighting.Brightness
+                lighting.ClockTime = oldlighting.ClockTime
+                lighting.FogColor = oldlighting.FogColor
+                lighting.FogStart = oldlighting.FogStart
+                lighting.FogEnd = oldlighting.FogEnd
+                lighting.GlobalShadows = oldlighting.GlobalShadows
+                lighting.ColorShift_Top = oldlighting.ColorShift_Top
+                lighting.ColorShift_Bottom = oldlighting.ColorShift_Bottom
+                lighting.EnvironmentDiffuseScale = oldlighting.EnvironmentDiffuseScale
+                lighting.EnvironmentSpecularScale = oldlighting.EnvironmentSpecularScale
+                lighting.ShadowSoftness = oldlighting.ShadowSoftness
             end
-
-            lighting.GlobalShadows = oldlighting.GlobalShadows
-            lighting.FogStart = oldlighting.FogStart
-            lighting.FogEnd = oldlighting.FogEnd
-            lighting.FogColor = oldlighting.FogColor
-            lighting.Brightness = oldlighting.Brightness
-            lighting.Ambient = oldlighting.Ambient
-            lighting.OutdoorAmbient = oldlighting.OutdoorAmbient
-            lighting.ClockTime = oldlighting.ClockTime
-            lighting.ColorShift_Top = oldlighting.ColorShift_Top
-            lighting.ColorShift_Bottom = oldlighting.ColorShift_Bottom
         end
-    end
-})
+    })
 
+    worldvisuals:AddDivider()
+
+    worldvisuals:AddLabel('Ambient'):AddColorPicker('Ambient',{
+        Title = "Ambient",
+        Default = oldlighting.Ambient,
+        Callback = function(v)
+            newlighting.Ambient = v
+        end
+    })
+
+    worldvisuals:AddLabel('OutdoorAmbient'):AddColorPicker('OutdoorAmbient',{
+        Title = "OutdoorAmbient",
+        Default =  oldlighting.OutdoorAmbient,
+        Callback = function(v)
+            newlighting.OutdoorAmbient = v
+        end
+    })
+
+    worldvisuals:AddSlider('Brightness',{
+        Min = 0,
+        Max = 10,
+        Rounding = 1,
+        Default = oldlighting.Brightness,
+        Compact = true,
+        Text = "Brightness",
+        Callback = function(v) 
+            newlighting.Brightness = v
+        end
+    })
+
+    worldvisuals:AddSlider('ClockTime',{
+        Min = 0,
+        Max = 24,
+        Rounding = 1,
+        Default = oldlighting.ClockTime,
+        Compact = true,
+        Text = "ClockTime",
+        Callback = function(v) 
+            newlighting.ClockTime = v
+        end
+    })
+
+    worldvisuals:AddLabel('FogColor'):AddColorPicker('FogColor',{
+        Title = "FogColor",
+        Default =  oldlighting.FogColor,
+        Callback = function(v)
+            newlighting.FogColor = v
+        end
+    })
+
+    worldvisuals:AddSlider('FogStart',{ -- game uses culling so doesnt rlly make a difference
+        Min = 0,
+        Max = 9999,
+        Rounding = 0,
+        Default = oldlighting.FogStart,
+        Compact = true,
+        Text = "FogStart",
+        Callback = function(v) 
+            newlighting.FogStart = v
+        end
+    })
+
+    worldvisuals:AddSlider('FogEnd',{
+        Min = 0,
+        Max = 9999,
+        Rounding = 0,
+        Default = oldlighting.FogEnd,
+        Compact = true,
+        Text = "FogEnd",
+        Callback = function(v) 
+            newlighting.FogEnd = v
+        end
+    })
+
+    worldvisuals:AddToggle('GlobalShadows',{
+        Default = oldlighting.GlobalShadows,
+        Text = "GlobalShadows",
+        Callback = function(v)
+            newlighting.GlobalShadows = v
+        end
+    })
+
+    worldvisuals:AddLabel('ColorShift_Top'):AddColorPicker('ColorShift_Top',{
+        Title = "ColorShift_Top",
+        Default = oldlighting.ColorShift_Top,
+        Callback = function(v)
+            newlighting.ColorShift_Top = v
+        end
+    })
+
+    worldvisuals:AddLabel('ColorShift_Bottom'):AddColorPicker('ColorShift_Bottom',{
+        Title = "ColorShift_Bottom",
+        Default =  oldlighting.ColorShift_Bottom,
+        Callback = function(v)
+            newlighting.ColorShift_Bottom = v
+        end
+    })
+
+    worldvisuals:AddSlider('EnvironmentDiffuseScale',{
+        Min = 0,
+        Max = 1,
+        Rounding = 1,
+        Default = oldlighting.EnvironmentDiffuseScale,
+        Compact = true,
+        Text = "EnvironmentDiffuseScale",
+        Callback = function(v) 
+            newlighting.EnvironmentDiffuseScale = v
+        end
+    })
+
+    worldvisuals:AddSlider('EnvironmentSpecularScale',{
+        Min = 0,
+        Max = 1,
+        Rounding = 1,
+        Default = oldlighting.EnvironmentSpecularScale,
+        Compact = true,
+        Text = "EnvironmentSpecularScale",
+        Callback = function(v) 
+            newlighting.EnvironmentSpecularScale = v
+        end
+    })
+
+    worldvisuals:AddSlider('ShadowSoftness',{
+        Min = 0,
+        Max = 1,
+        Rounding = 1,
+        Default = oldlighting.ShadowSoftness,
+        Compact = true,
+        Text = "ShadowSoftness",
+        Callback = function(v) 
+            newlighting.ShadowSoftness = v
+        end
+    })
+
+    worldvisuals:AddDivider()
+
+    lightingreset = worldvisuals:AddButton({
+        Text = "reset",
+        Func = function()
+            options.Ambient:SetValue(oldlighting.Ambient)
+            options.OutdoorAmbient:SetValue(oldlighting.OutdoorAmbient)
+            options.Brightness:SetValue(oldlighting.Brightness)
+            options.ClockTime:SetValue(oldlighting.ClockTime)
+            options.FogColor:SetValue(oldlighting.FogColor)
+            options.FogStart:SetValue(oldlighting.FogStart)
+            options.FogEnd:SetValue(oldlighting.FogEnd)
+            options.GlobalShadows:SetValue(oldlighting.GlobalShadows)
+            options.ColorShift_Top:SetValue(oldlighting.ColorShift_Top)
+            options.ColorShift_Bottom:SetValue(oldlighting.ColorShift_Bottom)
+            options.EnvironmentDiffuseScale:SetValue(oldlighting.EnvironmentDiffuseScale)
+            options.EnvironmentSpecularScale:SetValue(oldlighting.EnvironmentSpecularScale)
+            options.ShadowSoftness:SetValue(oldlighting.ShadowSoftness)
+        end,
+        DoubleClick = false,
+        Visible = true
+    })
+end
 
 -- shitty cleanup method but it workie
 library:OnUnload(function()
@@ -1513,28 +1842,19 @@ library:OnUnload(function()
         playerespcon = nil
     end
 
-    if fullbrightcon then
-        fullbrightcon:Disconnect()
-        fullbrightcon = nil
+    if lightingcon then
+        lightingcon:Disconnect()
+        lightingcon = nil
     end
 
-    lighting.GlobalShadows = oldlighting.GlobalShadows
-    lighting.FogStart = oldlighting.FogStart
-    lighting.FogEnd = oldlighting.FogEnd
-    lighting.FogColor = oldlighting.FogColor
-    lighting.Brightness = oldlighting.Brightness
-    lighting.Ambient = oldlighting.Ambient
-    lighting.OutdoorAmbient = oldlighting.OutdoorAmbient
-    lighting.ClockTime = oldlighting.ClockTime
-    lighting.ColorShift_Top = oldlighting.ColorShift_Top
-    lighting.ColorShift_Bottom = oldlighting.ColorShift_Bottom
+    if staffdetectorcon then
+        staffdetectorcon:Disconnect()
+        staffdetectorcon = nil
+    end
 
-    if oldrun then
-        for i,v in oldrun do
-            setreadonly(i, false)
-            i.HoldDownEnabled = v[1]
-            setreadonly(i, true)
-        end
+    if meleeauracon then
+        meleeauracon:Disconnect()
+        meleeauracon = nil
     end
 
     if oldpenetration then
@@ -1580,6 +1900,20 @@ library:OnUnload(function()
             setreadonly(i, true)
         end
     end
+
+    lighting.Ambient = oldlighting.Ambient
+    lighting.OutdoorAmbient = oldlighting.OutdoorAmbient
+    lighting.Brightness = oldlighting.Brightness
+    lighting.ClockTime = oldlighting.ClockTime
+    lighting.FogColor = oldlighting.FogColor
+    lighting.FogStart = oldlighting.FogStart
+    lighting.FogEnd = oldlighting.FogEnd
+    lighting.GlobalShadows = oldlighting.GlobalShadows
+    lighting.ColorShift_Top = oldlighting.ColorShift_Top
+    lighting.ColorShift_Bottom = oldlighting.ColorShift_Bottom
+    lighting.EnvironmentDiffuseScale = oldlighting.EnvironmentDiffuseScale
+    lighting.EnvironmentSpecularScale = oldlighting.EnvironmentSpecularScale
+    lighting.ShadowSoftness = oldlighting.ShadowSoftness
     
     library.Unloaded = true
 end)
